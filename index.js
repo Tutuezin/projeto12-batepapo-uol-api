@@ -16,12 +16,26 @@ client.connect().then(() => {
   db = client.db("batePapoUol");
 });
 
+const participantSchema = joi.object({
+  name: joi.string().required(),
+});
+
 //TODO: Tirar essa variavel global e por no banco de dados
 // const participants = [];
 
 server.post("/participants", async (req, res) => {
+  const participant = req.body;
+
+  const validation = participantSchema.validate(participant, {
+    abortEarly: false,
+  });
+
+  if (validation.error) {
+    res.sendStatus(422);
+    return;
+  }
+
   try {
-    const participant = req.body;
     participant.lastStatus = Date.now();
 
     await db.collection("participants").insertOne(participant);
