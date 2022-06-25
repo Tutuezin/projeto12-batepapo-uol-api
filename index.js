@@ -15,6 +15,7 @@ server.use([cors(), express.json()]);
 const client = new MongoClient(process.env.MONGO_URI);
 let db;
 client.connect().then(() => {
+  console.log(chalk.bold.yellow("Conectado ao DataBase..."));
   db = client.db("batePapoUol");
 });
 
@@ -136,6 +137,14 @@ server.post("/messages", checkMessage, async (req, res) => {
 server.get("/messages", async (req, res) => {
   const { limit } = req.query;
   const messages = await db.collection("messages").find().toArray();
+
+  if (limit) {
+    const messagesFiltradas =
+      limit < messages.length
+        ? messages.splice(messages.length - limit)
+        : messages;
+    return res.send(messagesFiltradas);
+  }
 
   try {
     res.send(messages);
