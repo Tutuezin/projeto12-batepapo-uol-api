@@ -19,7 +19,7 @@ client.connect().then(() => {
   db = client.db("batePapoUol");
 });
 
-//SCHEMA
+//SCHEMAS
 const participantSchema = joi.object({
   name: joi.string().required(),
 });
@@ -91,7 +91,6 @@ server.get("/participants", async (req, res) => {
 });
 
 //MESSAGES
-
 async function checkMessage(req, res, next) {
   const message = req.body;
   const username = req.header("User");
@@ -153,6 +152,64 @@ server.get("/messages", async (req, res) => {
     res.sendStatus(500);
   }
 });
+
+//STATUS
+
+async function checkParticipant(req, res, next) {
+  const username = req.header("User");
+
+  const participantExists = await db
+    .collection("participants")
+    .findOne({ name: username });
+
+  if (!participantExists) {
+    res.sendStatus(404);
+    return;
+  }
+
+  next();
+}
+
+server.post("/status", checkParticipant, async (req, res) => {
+  const username = req.header("User");
+
+  const lastStatus = await db
+    .collection("participants")
+    .findOne({ name: username });
+
+  await db.collection("participants").updateOne(
+    {
+      name: username,
+    },
+    {
+      $set: { lastStatus: Date.now() },
+    }
+  );
+
+  res.sendStatus(200);
+  console.log(lastStatus.lastStatus);
+});
+
+//AUTOMATIC REMOVAL OF PARTICIPANT
+setInterval(async () => {
+  const checkStatus = Date.now();
+  const participants = await db.collection("participants").find().toArray();
+
+  participants.forEach(async (element) => {
+    const leaveRoom = {
+      from: element.name,
+      to: "Todos",
+      text: "sai da sala...",
+      type: "status",
+      time: dayjs().format("HH:mm:ss"),
+    };
+
+    if (checkStatus - element.lastStatus > 10000) {
+      await db.collection("participants").deleteOne({ _id: element["_id"] });
+      await db.collection("messages").insertOne(leaveRoom);
+    }
+  });
+}, 15000);
 
 server.listen(5000, () => {
   console.log(chalk.bold.green("Rodando..."));
