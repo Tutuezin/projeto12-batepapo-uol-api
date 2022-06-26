@@ -86,6 +86,7 @@ server.get("/participants", async (req, res) => {
     res.send(participants);
   } catch (error) {
     console.error(error);
+
     res.sendStatus(500);
   }
 });
@@ -117,44 +118,54 @@ async function checkMessage(req, res, next) {
 }
 
 server.post("/messages", checkMessage, async (req, res) => {
-  const message = req.body;
-  const username = req.header("User");
+  try {
+    const message = req.body;
+    const username = req.header("User");
 
-  const sendMessage = {
-    from: username,
-    ...message,
-    time: dayjs().format("HH:mm:ss"),
-  };
+    const sendMessage = {
+      from: username,
+      ...message,
+      time: dayjs().format("HH:mm:ss"),
+    };
+    await db.collection("messages").insertOne(sendMessage);
 
-  await db.collection("messages").insertOne(sendMessage);
+    res.sendStatus(201);
+  } catch (error) {
+    console.error(error);
 
-  res.sendStatus(201);
-
-  console.log(username);
+    res.sendStatus(500);
+  }
 });
 
 server.get("/messages", async (req, res) => {
-  const { limit } = req.query;
-  const messages = await db.collection("messages").find().toArray();
-
-  if (limit) {
-    const messagesFiltradas =
-      limit < messages.length
-        ? messages.splice(messages.length - limit)
-        : messages;
-    return res.send(messagesFiltradas);
-  }
-
   try {
-    res.send(messages);
+    const { limit } = req.query;
+    const username = req.header("User");
+    const messages = await db.collection("messages").find().toArray();
+
+    const privateMessages = messages.filter((msg) => {
+      if (msg.to === "Todos" || msg.to === username || msg.from === username)
+        return true;
+      return false;
+    });
+
+    if (limit) {
+      const messagesFiltradas =
+        limit < privateMessages.length
+          ? privateMessages.splice(privateMessages.length - limit)
+          : privateMessages;
+      return res.send(messagesFiltradas);
+    }
+
+    res.send(privateMessages);
   } catch (error) {
     console.error(error);
+
     res.sendStatus(500);
   }
 });
 
 //STATUS
-
 async function checkParticipant(req, res, next) {
   const username = req.header("User");
 
@@ -171,23 +182,28 @@ async function checkParticipant(req, res, next) {
 }
 
 server.post("/status", checkParticipant, async (req, res) => {
-  const username = req.header("User");
+  try {
+    const username = req.header("User");
 
-  const lastStatus = await db
-    .collection("participants")
-    .findOne({ name: username });
+    const lastStatus = await db
+      .collection("participants")
+      .findOne({ name: username });
 
-  await db.collection("participants").updateOne(
-    {
-      name: username,
-    },
-    {
-      $set: { lastStatus: Date.now() },
-    }
-  );
+    await db.collection("participants").updateOne(
+      {
+        name: username,
+      },
+      {
+        $set: { lastStatus: Date.now() },
+      }
+    );
 
-  res.sendStatus(200);
-  console.log(lastStatus.lastStatus);
+    res.sendStatus(200);
+  } catch (error) {
+    console.error(error);
+
+    res.sendStatus(500);
+  }
 });
 
 //AUTOMATIC REMOVAL OF PARTICIPANT
